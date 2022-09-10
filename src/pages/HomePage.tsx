@@ -1,20 +1,33 @@
 import React, { ChangeEvent, useEffect, useState } from "react";
+import { RepoCard } from "../components/RepoCard";
 import { useDebounce } from "../hooks/debounce";
-import { useSearchUsersQuery } from "../store/github/github.api";
+import {
+  useLazyGetUserReposQuery,
+  useSearchUsersQuery,
+} from "../store/github/github.api";
 
 export function HomePage() {
   const [search, setSearch] = useState<string>("");
+  const [dropDown, setDropDown] = useState(false);
   const debounced = useDebounce(search);
   const { isLoading, isError, data } = useSearchUsersQuery(debounced, {
     skip: debounced.length < 3,
+    refetchOnFocus: true,
   });
+  const [fetchRepos, { isLoading: areReposLoading, data: repos }] =
+    useLazyGetUserReposQuery();
 
   useEffect(() => {
-    console.log(debounced);
-  }, [debounced]);
+    setDropDown(debounced.length > 3 && data?.length! > 0);
+  }, [debounced, data]);
+
+  const clickHandler = (username: string) => {
+    fetchRepos(username);
+    setDropDown(false);
+  };
 
   return (
-    <div className="flex justify-center pt-10 mx-auto h-screen w-full">
+    <div className="flex justify-center pt-10 mx-auto h-full w-full">
       {isError && (
         <p className="text-center text-red-600">Something went wrong...</p>
       )}
@@ -30,17 +43,28 @@ export function HomePage() {
           }
         />
 
-        <ul className="list-none absolute top-[42px] left-0 right-0 max-h-[200px] overflow-y-scroll shadow-md bg-white">
-          {isLoading && <p className="text-center">Loading...</p>}
-          {data?.map((user) => (
-            <li
-              key={user.id}
-              className="py2 px-4 hover:bg-gray-500 hover:to-white transition-colors cursor-pointer"
-            >
-              {user.login}
-            </li>
+        {dropDown && (
+          <ul className="list-none absolute top-[42px] left-0 right-0 shadow-md bg-white">
+            {isLoading && <p className="text-center">Loading...</p>}
+            {data?.map((user) => (
+              <li
+                key={user.id}
+                onClick={() => clickHandler(user.login)}
+                className="py2 px-4 hover:bg-gray-500 hover:to-white transition-colors cursor-pointer"
+              >
+                {user.login}
+              </li>
+            ))}
+          </ul>
+        )}
+        <div className="container">
+          {areReposLoading && (
+            <p className="text-center">Repos are loading...</p>
+          )}
+          {repos?.map((repo) => (
+            <RepoCard repo={repo} key={repo.id} />
           ))}
-        </ul>
+        </div>
       </div>
     </div>
   );
